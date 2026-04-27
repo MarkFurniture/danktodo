@@ -114,6 +114,15 @@ PluginComponent {
         return Theme.surfaceText;
     }
 
+    function todoCardColor(status) {
+        const base = Theme.surfaceContainerHigh;
+        if (status === statusActive)
+            return Qt.tint(base, Theme.withAlpha(Theme.success, 0.28));
+        if (status === statusComplete)
+            return Qt.tint(base, Theme.withAlpha(Theme.info, 0.28));
+        return base;
+    }
+
     function cycleStatus(id) {
         const idx = findIndexById(id);
         if (idx < 0)
@@ -386,7 +395,7 @@ PluginComponent {
                                 width: parent.width
                                 height: rowInner.implicitHeight + Theme.spacingM * 2
                                 radius: Theme.cornerRadius
-                                color: Theme.surfaceContainerHigh
+                                color: root.todoCardColor(modelData.status)
 
                                 required property var modelData
 

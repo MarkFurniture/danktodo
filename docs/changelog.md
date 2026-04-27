@@ -10,3 +10,4 @@
 - [Changed]: Bar outstanding-count badge uses smaller pixel font and tighter pill (Mike Thomas, 2026-04-24)
 - [Changed]: Count badge font and pill height scale from `barThickness` so scaled-down bars get proportionally smaller type (Mike Thomas, 2026-04-24)
 - [Changed]: Bar count badge font `barThickness × 0.238`, pill height `barThickness × 0.315` (Mike Thomas, 2026-04-24)
+- [Changed]: Todo rows use a light green card tint when active and a light blue tint when complete (`Qt.tint` with `Theme.success` / `Theme.info`) (Mike Thomas, 2026-04-24)
