@@ -23,6 +23,10 @@ PluginComponent {
 
     property string openMenuId: ""
 
+    property bool listExpanded: false
+    property int reorderActiveIndex: -1
+    property int reorderHoverIndex: -1
+
     readonly property int statusIncomplete: 0
     readonly property int statusActive: 1
     readonly property int statusComplete: 2
@@ -30,7 +34,20 @@ PluginComponent {
     readonly property int barCountFontPx: Math.max(6, Math.round(barThickness * 0.238))
     readonly property int barCountPillHeight: Math.max(10, Math.round(barThickness * 0.315))
 
+    readonly property real listViewportExpandedCap: {
+        const s = parentScreen;
+        if (!s || !s.height)
+            return 560;
+        return Math.max(200, s.height - 260);
+    }
+
+    readonly property var todoTintPalette: ["#EF9A9A", "#F48FB1", "#CE93D8", "#B39DDB", "#9FA8DA", "#90CAF9", "#80DEEA", "#A5D6A7", "#E6EE9C", "#FFCC80"]
+
     popoutWidth: 380
+
+    ListModel {
+        id: filteredLm
+    }
 
     onPluginServiceChanged: {
         if (pluginService)
@@ -72,6 +89,84 @@ PluginComponent {
                 out.push(t);
         }
         filteredTodos = out;
+        Qt.callLater(rebuildFilteredLm);
+    }
+
+    function findFilteredTodosIndicesInFull() {
+        const idxs = [];
+        for (let i = 0; i < todos.length; i++) {
+            const t = todos[i];
+            if (!showCompleted && t.status === statusComplete)
+                continue;
+            idxs.push(i);
+        }
+        return idxs;
+    }
+
+    function rebuildFilteredLm() {
+        if (reorderActiveIndex >= 0 || !filteredLm)
+            return;
+        while (filteredLm.count > 0)
+            filteredLm.remove(0);
+        for (let i = 0; i < filteredTodos.length; i++) {
+            const t = filteredTodos[i];
+            filteredLm.append({
+                todoId: t.id,
+                todoTitle: t.title || "",
+                todoNotes: t.notes || "",
+                todoStatus: t.status || 0,
+                todoTint: typeof t.tint === "string" ? t.tint : ""
+            });
+        }
+    }
+
+    function applyFilteredLmToTodos() {
+        const idxs = findFilteredTodosIndicesInFull();
+        if (idxs.length !== filteredLm.count)
+            return;
+        const copy = todos.slice();
+        for (let fi = 0; fi < filteredLm.count; fi++) {
+            const it = filteredLm.get(fi);
+            copy[idxs[fi]] = {
+                id: it.todoId,
+                title: it.todoTitle,
+                notes: it.todoNotes,
+                status: it.todoStatus,
+                tint: typeof it.todoTint === "string" ? it.todoTint : ""
+            };
+        }
+        setTodosCopy(copy);
+    }
+
+    function moveFilteredLmItem(from, to) {
+        if (from === to || from < 0 || to < 0 || from >= filteredLm.count || to >= filteredLm.count)
+            return;
+        const items = [];
+        for (let i = 0; i < filteredLm.count; i++) {
+            const g = filteredLm.get(i);
+            items.push({
+                todoId: g.todoId,
+                todoTitle: g.todoTitle,
+                todoNotes: g.todoNotes,
+                todoStatus: g.todoStatus,
+                todoTint: typeof g.todoTint === "string" ? g.todoTint : ""
+            });
+        }
+        const row = items.splice(from, 1)[0];
+        items.splice(to, 0, row);
+        while (filteredLm.count > 0)
+            filteredLm.remove(0);
+        for (let j = 0; j < items.length; j++) {
+            const it = items[j];
+            filteredLm.append({
+                todoId: it.todoId,
+                todoTitle: it.todoTitle,
+                todoNotes: it.todoNotes,
+                todoStatus: it.todoStatus,
+                todoTint: it.todoTint || ""
+            });
+        }
+        applyFilteredLmToTodos();
     }
 
     function findIndexById(id) {
@@ -108,19 +203,52 @@ PluginComponent {
 
     function statusColor(st) {
         if (st === statusActive)
-            return Theme.primary;
+            return Theme.info;
         if (st === statusComplete)
-            return Theme.surfaceVariantText;
+            return Theme.success;
         return Theme.surfaceText;
     }
 
-    function todoCardColor(status) {
+    function todoRowCardColor(tintHex, status) {
         const base = Theme.surfaceContainerHigh;
-        if (status === statusActive)
-            return Qt.tint(base, Theme.withAlpha(Theme.success, 0.28));
-        if (status === statusComplete)
-            return Qt.tint(base, Theme.withAlpha(Theme.info, 0.28));
-        return base;
+        let fill = base;
+        if (tintHex && typeof tintHex === "string" && tintHex.trim().length > 0) {
+            const c = Qt.color(tintHex.trim());
+            const k = 0.42;
+            fill = Qt.rgba(
+                base.r * (1 - k) + c.r * k,
+                base.g * (1 - k) + c.g * k,
+                base.b * (1 - k) + c.b * k,
+                1
+            );
+        }
+        if (status === statusComplete) {
+            const s = Theme.surface;
+            const d = 0.50;
+            return Qt.rgba(
+                fill.r * (1 - d) + s.r * d,
+                fill.g * (1 - d) + s.g * d,
+                fill.b * (1 - d) + s.b * d,
+                1
+            );
+        }
+        return fill;
+    }
+
+    function setTodoTint(id, hex) {
+        const idx = findIndexById(id);
+        if (idx < 0)
+            return;
+        const copy = todos.slice();
+        const t = copy[idx];
+        copy[idx] = {
+            id: t.id,
+            title: t.title,
+            notes: t.notes || "",
+            status: t.status || 0,
+            tint: hex && typeof hex === "string" && hex.length > 0 ? hex : ""
+        };
+        setTodosCopy(copy);
     }
 
     function cycleStatus(id) {
@@ -133,7 +261,8 @@ PluginComponent {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: (t.status + 1) % 3
+            status: (t.status + 1) % 3,
+            tint: typeof t.tint === "string" ? t.tint : ""
         };
         setTodosCopy(copy);
     }
@@ -148,7 +277,8 @@ PluginComponent {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: (t.status + 2) % 3
+            status: (t.status + 2) % 3,
+            tint: typeof t.tint === "string" ? t.tint : ""
         };
         setTodosCopy(copy);
     }
@@ -170,7 +300,7 @@ PluginComponent {
         composeNotesText = "";
         cancelEdit();
         openMenuId = "";
-        Qt.callLater(() => composeTitleField.forceActiveFocus());
+        composeTitleFocusTimer.restart();
     }
 
     function cancelCompose() {
@@ -189,7 +319,8 @@ PluginComponent {
                 id: id,
                 title: title,
                 notes: composeNotesText.trim(),
-                status: statusIncomplete
+                status: statusIncomplete,
+                tint: ""
             }]);
         composing = false;
         composeTitleText = "";
@@ -229,7 +360,8 @@ PluginComponent {
             id: t.id,
             title: title,
             notes: editNotesText.trim(),
-            status: t.status
+            status: t.status,
+            tint: typeof t.tint === "string" ? t.tint : ""
         };
         cancelEdit();
         setTodosCopy(copy);
@@ -331,6 +463,34 @@ PluginComponent {
                 showCloseButton: true
                 closePopout: popoutRoot.closePopout
 
+                headerActions: Component {
+                    Row {
+                        spacing: Theme.spacingXS
+
+                        StyledRect {
+                            width: 36
+                            height: 36
+                            radius: Theme.cornerRadius
+                            color: expandHit.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                            DankIcon {
+                                anchors.centerIn: parent
+                                name: root.listExpanded ? "fullscreen_exit" : "open_in_full"
+                                size: Theme.iconSize - 4
+                                color: Theme.surfaceText
+                            }
+
+                            MouseArea {
+                                id: expandHit
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.listExpanded = !root.listExpanded
+                            }
+                        }
+                    }
+                }
+
                 Item {
                     width: parent.width
                     height: toggleRow.implicitHeight + Theme.spacingS
@@ -376,11 +536,13 @@ PluginComponent {
                 Flickable {
                     id: flick
                     width: parent.width
-                    height: Math.min(320, Math.max(80, todoListColumn.implicitHeight))
+                    readonly property real todoColH: Math.max(80, todoListColumn.implicitHeight)
+                    height: root.listExpanded ? Math.min(todoColH, root.listViewportExpandedCap) : Math.min(320, todoColH)
                     contentWidth: width
                     contentHeight: todoListColumn.implicitHeight
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
+                    interactive: root.reorderActiveIndex < 0 && contentHeight > height
                     onMovementStarted: root.openMenuId = ""
 
                     Column {
@@ -388,16 +550,28 @@ PluginComponent {
                         width: flick.width
                         spacing: Theme.spacingXS
 
-                        Repeater {
-                            model: root.filteredTodos
+                        ListView {
+                            id: todoListView
+                            width: parent.width
+                            height: contentHeight
+                            spacing: Theme.spacingXS
+                            model: filteredLm
+                            interactive: false
 
-                            StyledRect {
-                                width: parent.width
+                            delegate: StyledRect {
+                                width: todoListView.width
                                 height: rowInner.implicitHeight + Theme.spacingM * 2
                                 radius: Theme.cornerRadius
-                                color: root.todoCardColor(modelData.status)
+                                color: root.todoRowCardColor(todoTint, todoStatus)
+                                border.width: root.reorderActiveIndex >= 0 && index === root.reorderHoverIndex ? 2 : 0
+                                border.color: Theme.primary
 
-                                required property var modelData
+                                required property int index
+                                required property string todoId
+                                required property string todoTitle
+                                required property string todoNotes
+                                required property int todoStatus
+                                required property string todoTint
 
                                 Column {
                                     id: rowInner
@@ -411,34 +585,81 @@ PluginComponent {
                                         id: viewRow
                                         width: parent.width
                                         spacing: Theme.spacingS
-                                        visible: root.editingId !== modelData.id
+                                        visible: root.editingId !== todoId
+                                        readonly property real rowBodyH: Math.max(36, titleNotesCol.implicitHeight)
 
                                         MouseArea {
-                                            width: statusTap.width
-                                            height: statusTap.height
-                                            cursorShape: Qt.PointingHandCursor
-                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                            onClicked: mouse => {
-                                                if (root.openMenuId === modelData.id) {
-                                                    root.openMenuId = "";
+                                            id: dragHandle
+                                            width: 28
+                                            height: viewRow.rowBodyH
+                                            cursorShape: Qt.SizeVerCursor
+                                            hoverEnabled: true
+                                            onPressed: {
+                                                root.reorderActiveIndex = index;
+                                                root.reorderHoverIndex = index;
+                                            }
+                                            onPositionChanged: mouse => {
+                                                if (!dragHandle.pressed)
                                                     return;
-                                                }
-                                                if (mouse.button === Qt.RightButton)
-                                                    root.cycleStatusBackward(modelData.id);
-                                                else
-                                                    root.cycleStatus(modelData.id);
+                                                const pt = mapToItem(todoListView, mouse.x, mouse.y);
+                                                const hi = todoListView.indexAt(todoListView.width * 0.5, pt.y);
+                                                if (hi >= 0 && hi !== root.reorderHoverIndex)
+                                                    root.reorderHoverIndex = hi;
+                                            }
+                                            onReleased: {
+                                                if (root.reorderActiveIndex >= 0 && root.reorderHoverIndex >= 0)
+                                                    root.moveFilteredLmItem(root.reorderActiveIndex, root.reorderHoverIndex);
+                                                root.reorderActiveIndex = -1;
+                                                root.reorderHoverIndex = -1;
+                                            }
+                                            onCanceled: {
+                                                root.reorderActiveIndex = -1;
+                                                root.reorderHoverIndex = -1;
                                             }
 
                                             DankIcon {
-                                                id: statusTap
-                                                name: root.statusIcon(modelData.status)
-                                                size: Theme.iconSize
-                                                color: root.statusColor(modelData.status)
+                                                anchors.centerIn: parent
+                                                name: "drag_indicator"
+                                                size: Theme.iconSize - 4
+                                                color: Theme.surfaceVariantText
                                             }
                                         }
 
                                         Item {
-                                            width: parent.width - statusTap.width - menuStrip.width - Theme.spacingS * 2
+                                            id: statusColumn
+                                            width: Theme.iconSize + 4
+                                            height: viewRow.rowBodyH
+
+                                            MouseArea {
+                                                id: statusHit
+                                                anchors.centerIn: parent
+                                                width: statusTap.width
+                                                height: statusTap.height
+                                                cursorShape: Qt.PointingHandCursor
+                                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                onClicked: mouse => {
+                                                    if (root.openMenuId === todoId) {
+                                                        root.openMenuId = "";
+                                                        return;
+                                                    }
+                                                    if (mouse.button === Qt.RightButton)
+                                                        root.cycleStatusBackward(todoId);
+                                                    else
+                                                        root.cycleStatus(todoId);
+                                                }
+
+                                                DankIcon {
+                                                    id: statusTap
+                                                    name: root.statusIcon(todoStatus)
+                                                    size: Theme.iconSize
+                                                    color: root.statusColor(todoStatus)
+                                                }
+                                            }
+                                        }
+
+                                        Item {
+                                            id: middleCol
+                                            width: parent.width - dragHandle.width - statusColumn.width - menuStrip.width - Theme.spacingS * 3
                                             implicitHeight: titleNotesCol.implicitHeight
 
                                             Column {
@@ -450,7 +671,7 @@ PluginComponent {
 
                                                 StyledText {
                                                     width: parent.width
-                                                    text: modelData.title || ""
+                                                    text: todoTitle || ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     font.weight: Font.Medium
                                                     color: Theme.surfaceText
@@ -460,8 +681,8 @@ PluginComponent {
 
                                                 StyledText {
                                                     width: parent.width
-                                                    visible: (modelData.notes || "").length > 0
-                                                    text: modelData.notes || ""
+                                                    visible: (todoNotes || "").length > 0
+                                                    text: todoNotes || ""
                                                     font.pixelSize: Theme.fontSizeSmall
                                                     color: Theme.surfaceVariantText
                                                     wrapMode: Text.WordWrap
@@ -472,7 +693,7 @@ PluginComponent {
                                             MouseArea {
                                                 anchors.fill: parent
                                                 z: 10
-                                                visible: root.openMenuId === modelData.id
+                                                visible: root.openMenuId === todoId
                                                 hoverEnabled: true
                                                 cursorShape: Qt.ArrowCursor
                                                 onClicked: root.openMenuId = ""
@@ -481,19 +702,19 @@ PluginComponent {
 
                                         Item {
                                             id: menuStrip
-                                            width: root.openMenuId === modelData.id ? (40 + Theme.spacingXS + 40) : 36
-                                            height: 36
+                                            width: root.openMenuId === todoId ? (40 + Theme.spacingXS + 40) : 36
+                                            height: viewRow.rowBodyH
 
                                             MouseArea {
                                                 anchors.right: parent.right
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: 36
                                                 height: 36
-                                                visible: root.openMenuId !== modelData.id
+                                                visible: root.openMenuId !== todoId
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    root.openMenuId = root.openMenuId === modelData.id ? "" : modelData.id;
+                                                    root.openMenuId = root.openMenuId === todoId ? "" : todoId;
                                                 }
 
                                                 DankIcon {
@@ -508,7 +729,7 @@ PluginComponent {
                                                 anchors.right: parent.right
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 spacing: Theme.spacingXS
-                                                visible: root.openMenuId === modelData.id
+                                                visible: root.openMenuId === todoId
 
                                                 StyledRect {
                                                     width: 40
@@ -540,7 +761,7 @@ PluginComponent {
                                                         anchors.fill: parent
                                                         hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.startEdit(modelData.id)
+                                                        onClicked: root.startEdit(todoId)
                                                     }
                                                 }
 
@@ -574,9 +795,65 @@ PluginComponent {
                                                         anchors.fill: parent
                                                         hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.deleteTodo(modelData.id)
+                                                        onClicked: root.deleteTodo(todoId)
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+
+                                    Row {
+                                        id: menuTintSwatches
+                                        width: parent.width
+                                        spacing: Theme.spacingXS
+                                        visible: root.openMenuId === todoId
+                                        readonly property int swatchCount: root.todoTintPalette.length + 1
+                                        readonly property real swatchW: swatchCount > 0 ? (width - spacing * (swatchCount - 1)) / swatchCount : 0
+                                        readonly property real swatchH: Math.max(22, swatchW * 0.85)
+
+                                        Repeater {
+                                            model: root.todoTintPalette
+
+                                            delegate: Rectangle {
+                                                required property string modelData
+
+                                                width: menuTintSwatches.swatchW
+                                                height: menuTintSwatches.swatchH
+                                                radius: height / 2
+                                                color: modelData
+                                                border.width: 1
+                                                border.color: Theme.withAlpha(Theme.surfaceText, 0.35)
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.setTodoTint(todoId, modelData)
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: menuTintSwatches.swatchW
+                                            height: menuTintSwatches.swatchH
+                                            radius: height / 2
+                                            color: Theme.surfaceContainer
+                                            border.width: 1
+                                            border.color: Theme.withAlpha(Theme.surfaceText, 0.45)
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: Math.round(parent.width * 0.55)
+                                                height: 2
+                                                rotation: 45
+                                                color: Theme.surfaceVariantText
+                                            }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.setTodoTint(todoId, "")
                                             }
                                         }
                                     }
@@ -585,7 +862,7 @@ PluginComponent {
                                         id: editBlock
                                         width: parent.width
                                         spacing: Theme.spacingS
-                                        visible: root.editingId === modelData.id
+                                        visible: root.editingId === todoId
 
                                         DankTextField {
                                             id: editTitleField
@@ -594,7 +871,7 @@ PluginComponent {
                                             text: root.editTitleText
                                             maximumLength: 240
                                             onTextChanged: {
-                                                if (root.editingId === modelData.id)
+                                                if (root.editingId === todoId)
                                                     root.editTitleText = text;
                                             }
                                             onAccepted: root.commitEdit()
@@ -606,7 +883,7 @@ PluginComponent {
                                             text: root.editNotesText
                                             maximumLength: 2000
                                             onTextChanged: {
-                                                if (root.editingId === modelData.id)
+                                                if (root.editingId === todoId)
                                                     root.editNotesText = text;
                                             }
                                         }
@@ -644,7 +921,7 @@ PluginComponent {
                                 MouseArea {
                                     anchors.fill: parent
                                     z: 50
-                                    visible: root.openMenuId !== "" && root.openMenuId !== modelData.id
+                                    visible: root.openMenuId !== "" && root.openMenuId !== todoId
                                     hoverEnabled: true
                                     cursorShape: Qt.ArrowCursor
                                     onClicked: root.openMenuId = ""
@@ -692,6 +969,20 @@ PluginComponent {
                                 maximumLength: 240
                                 onTextChanged: root.composeTitleText = text
                                 onAccepted: root.commitCompose()
+                                onVisibleChanged: {
+                                    if (visible)
+                                        composeTitleFocusTimer.restart();
+                                }
+                            }
+
+                            Timer {
+                                id: composeTitleFocusTimer
+                                interval: 50
+                                repeat: false
+                                onTriggered: {
+                                    if (root.composing && composeTitleField && composeTitleField.visible)
+                                        composeTitleField.forceActiveFocus();
+                                }
                             }
 
                             DankTextField {
@@ -701,6 +992,7 @@ PluginComponent {
                                 text: root.composeNotesText
                                 maximumLength: 2000
                                 onTextChanged: root.composeNotesText = text
+                                onAccepted: root.commitCompose()
                             }
 
                             Item {

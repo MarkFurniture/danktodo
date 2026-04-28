@@ -5,10 +5,13 @@ A bar plugin for [DankMaterialShell](https://github.com/AvengeMedia/DankMaterial
 ## Features
 
 - Outstanding count badge on the checklist icon (counts everything that is not **Complete**).
-- Status cycles on the leading icon: **Incomplete** → **Active** → **Complete** → …
+- Status cycles on the leading icon: **Incomplete** → **Active** → **Complete** → … (icon colour: default / blue when **Active** / green when **Complete**; icon stays vertically centred with the text block).
 - Per-todo **notes**, **Edit** / **Delete** from a **⋮** menu.
 - **Show completed** toggle (persisted).
-- **Add**: tap `+` to reveal title and notes fields on the bottom row; **Add** / **Cancel** (or Enter in the title field to save).
+- **Add**: tap **Add todo** to reveal title and notes fields on the bottom row (title field is focused); **Add** / **Cancel**; **Enter** in the title or notes field saves when the title is non-empty.
+- **Reorder**: drag the handle on the left edge of a row to move it in the filtered list (order is persisted in the full todo list).
+- **Expand**: header **open in full** / **fullscreen exit** icon toggles the list area between the normal capped height and `min(content height, available screen height)`.
+- **Row colour**: open the **⋮** menu on a row to show **colour swatches** (plus clear) across the full row width; they set an optional per-todo tint (persisted as `tint`). Completed todos keep that tint but the card is **dimmed** toward the surface.
 - Data stored with `pluginService.savePluginState` / `loadPluginState` under plugin id `dankBarTodo`.
 
 ## Install
