@@ -25,6 +25,12 @@ PluginComponent {
 
     property string openMenuId: ""
 
+    property var undoStack: []
+    property var redoStack: []
+    readonly property int undoRedoStackCap: 50
+    property bool canUndo: false
+    property bool canRedo: false
+
     property bool listExpanded: false
     property int reorderActiveIndex: -1
     property int reorderHoverIndex: -1
@@ -229,6 +235,10 @@ PluginComponent {
         todos = Array.isArray(list) ? list : [];
         const sc = pluginService.loadPluginState("dankBarTodo", "showCompleted");
         showCompleted = sc === true;
+        undoStack = [];
+        redoStack = [];
+        canUndo = false;
+        canRedo = false;
         syncFiltered();
     }
 
@@ -344,7 +354,59 @@ PluginComponent {
         return -1;
     }
 
+    function pushUndoSnapshot() {
+        const snap = JSON.stringify(todos);
+        let u = undoStack.concat([snap]);
+        if (u.length > undoRedoStackCap)
+            u = u.slice(u.length - undoRedoStackCap);
+        undoStack = u;
+        redoStack = [];
+        canUndo = undoStack.length > 0;
+        canRedo = false;
+    }
+
+    function undoTodos() {
+        if (undoStack.length === 0)
+            return;
+        const current = JSON.stringify(todos);
+        const u = undoStack.slice();
+        const prev = u[u.length - 1];
+        undoStack = u.slice(0, u.length - 1);
+        redoStack = redoStack.concat([current]);
+        todos = JSON.parse(prev);
+        saveTodos();
+        syncFiltered();
+        cancelEdit();
+        cancelCompose();
+        openMenuId = "";
+        reorderActiveIndex = -1;
+        reorderHoverIndex = -1;
+        canUndo = undoStack.length > 0;
+        canRedo = redoStack.length > 0;
+    }
+
+    function redoTodos() {
+        if (redoStack.length === 0)
+            return;
+        const current = JSON.stringify(todos);
+        const r = redoStack.slice();
+        const next = r[r.length - 1];
+        redoStack = r.slice(0, r.length - 1);
+        undoStack = undoStack.concat([current]);
+        todos = JSON.parse(next);
+        saveTodos();
+        syncFiltered();
+        cancelEdit();
+        cancelCompose();
+        openMenuId = "";
+        reorderActiveIndex = -1;
+        reorderHoverIndex = -1;
+        canUndo = undoStack.length > 0;
+        canRedo = redoStack.length > 0;
+    }
+
     function setTodosCopy(next) {
+        pushUndoSnapshot();
         todos = next;
         saveTodos();
         syncFiltered();
@@ -352,6 +414,7 @@ PluginComponent {
     }
 
     function applyTodosPreserveMenu(next) {
+        pushUndoSnapshot();
         todos = next;
         saveTodos();
         syncFiltered();
@@ -669,6 +732,58 @@ PluginComponent {
                 headerActions: Component {
                     Row {
                         spacing: Theme.spacingXS
+
+                        StyledRect {
+                            width: 36
+                            height: 36
+                            radius: Theme.cornerRadius
+                            opacity: root.canUndo ? 1 : 0.38
+                            color: undoHit.containsMouse && root.canUndo ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                            DankIcon {
+                                anchors.centerIn: parent
+                                name: "undo"
+                                size: Theme.iconSize - 4
+                                color: Theme.surfaceText
+                            }
+
+                            MouseArea {
+                                id: undoHit
+                                anchors.fill: parent
+                                hoverEnabled: root.canUndo
+                                cursorShape: root.canUndo ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: {
+                                    if (root.canUndo)
+                                        root.undoTodos();
+                                }
+                            }
+                        }
+
+                        StyledRect {
+                            width: 36
+                            height: 36
+                            radius: Theme.cornerRadius
+                            opacity: root.canRedo ? 1 : 0.38
+                            color: redoHit.containsMouse && root.canRedo ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                            DankIcon {
+                                anchors.centerIn: parent
+                                name: "redo"
+                                size: Theme.iconSize - 4
+                                color: Theme.surfaceText
+                            }
+
+                            MouseArea {
+                                id: redoHit
+                                anchors.fill: parent
+                                hoverEnabled: root.canRedo
+                                cursorShape: root.canRedo ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: {
+                                    if (root.canRedo)
+                                        root.redoTodos();
+                                }
+                            }
+                        }
 
                         StyledRect {
                             width: 36
