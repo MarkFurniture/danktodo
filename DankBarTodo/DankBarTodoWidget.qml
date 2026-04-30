@@ -627,7 +627,7 @@ PluginComponent {
     function todoRowPrimaryTextColor(tintHex, status) {
         if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
             return Theme.surfaceText;
-        const base = lightenTintForText(tintHex, 0.38);
+        const base = lightenTintForText(tintHex, 0.50);
         if (status === statusComplete) {
             const dim = Theme.surfaceText;
             const d = 0.42;
@@ -644,7 +644,7 @@ PluginComponent {
     function todoRowSecondaryTextColor(tintHex, status) {
         if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
             return Theme.surfaceVariantText;
-        const base = lightenTintForText(tintHex, 0.55);
+        const base = lightenTintForText(tintHex, 0.66);
         if (status === statusComplete) {
             const dim = Theme.surfaceVariantText;
             const d = 0.42;

@@ -2,6 +2,7 @@
 
 ## 2026-04-28
 
+- [Changed]: Tinted row text **`lightenTintForText`** mix toward white: title **0.38 → 0.50**, notes **0.55 → 0.66** (slightly softer on tinted cards) (Mike Thomas, 2026-04-28)
 - [Fixed]: Sort **Popup** moved to **`popoutRoot`** (sibling of **`PopoutComponent`**), **`sortPopupHostItem`** + **`mapToItem`** positioning, **`modal: false`** (avoids broken shell **`Overlay`** dim / invisible panel); **`popoutRoot.clip: false`**; **`sortPopup.close()`** when popout hides (Mike Thomas, 2026-04-28)
 - [Changed]: Sort **Popup** sibling of sort button under header **`Row`**; each criterion **cycles** asc (↑) / desc (↓) / **restore** (`onSortCriterionClicked`, `sortManualSnapshotIds`); **undo / redo / reload** clear arrows via **`clearSortUiState`**; dropped **`sortMode`** persistence (Mike Thomas, 2026-04-28)
 - [Changed]: **Urgent** visuals (row border, strip cell fill/border/icon) use **`todoUrgentAccentColor`**: `vibrantFromTintHex` (channels stretched from mid‑grey) from the current tint, or **`Theme.error`** when there is no tint; compose strip uses **`composeTint`** the same way; urgent cell when off uses neutral border/icon (Mike Thomas, 2026-04-28)
