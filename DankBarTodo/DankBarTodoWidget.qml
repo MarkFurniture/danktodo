@@ -16,6 +16,8 @@ PluginComponent {
     property bool composing: false
     property string composeTitleText: ""
     property string composeNotesText: ""
+    property string composeTint: ""
+    property bool composeUrgent: false
 
     property string editingId: ""
     property string editTitleText: ""
@@ -43,10 +45,171 @@ PluginComponent {
 
     readonly property var todoTintPalette: ["#EF9A9A", "#F48FB1", "#CE93D8", "#B39DDB", "#9FA8DA", "#90CAF9", "#80DEEA", "#A5D6A7", "#E6EE9C", "#FFCC80"]
 
+    Component {
+        id: tintUrgentStripComponent
+
+        Item {
+            id: strip
+            width: parent.width
+
+            property bool composeMode: false
+            property string todoId: ""
+            property int urgentInt: 0
+            property bool swatchDoubleClickExits: false
+
+            readonly property real gap: Theme.spacingXS
+            readonly property int stripCount: root.todoTintPalette.length + 2
+            readonly property real cellW: stripCount > 0 && width > 0 ? (width - gap * (stripCount - 1)) / stripCount : 0
+            readonly property real cellH: Math.max(22, cellW * 0.85)
+            height: cellH
+            clip: false
+
+            readonly property bool urgentOn: composeMode ? root.composeUrgent : (urgentInt === 1)
+
+            Repeater {
+                model: root.todoTintPalette
+
+                delegate: Rectangle {
+                    required property string modelData
+                    required property int index
+
+                    x: index * (strip.cellW + strip.gap)
+                    y: 0
+                    width: strip.cellW
+                    height: strip.cellH
+                    radius: height / 2
+                    color: modelData
+                    border.width: 1
+                    border.color: Theme.withAlpha(Theme.surfaceText, 0.35)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (strip.composeMode)
+                                root.composeTint = modelData;
+                            else
+                                root.setTodoTint(strip.todoId, modelData);
+                        }
+                        onDoubleClicked: {
+                            if (!strip.swatchDoubleClickExits)
+                                return;
+                            if (strip.composeMode)
+                                root.cancelCompose();
+                            else
+                                root.cancelEdit();
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                x: root.todoTintPalette.length * (strip.cellW + strip.gap)
+                y: 0
+                width: strip.cellW
+                height: strip.cellH
+                radius: height / 2
+                color: Theme.surfaceContainer
+                border.width: 1
+                border.color: Theme.withAlpha(Theme.surfaceText, 0.45)
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: Math.round(parent.width * 0.55)
+                    height: 2
+                    rotation: 45
+                    color: Theme.surfaceVariantText
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (strip.composeMode)
+                            root.composeTint = "";
+                        else
+                            root.setTodoTint(strip.todoId, "");
+                    }
+                    onDoubleClicked: {
+                        if (!strip.swatchDoubleClickExits)
+                            return;
+                        if (strip.composeMode)
+                            root.cancelCompose();
+                        else
+                            root.cancelEdit();
+                    }
+                }
+            }
+
+            Rectangle {
+                x: (root.todoTintPalette.length + 1) * (strip.cellW + strip.gap)
+                y: 0
+                width: strip.cellW
+                height: strip.cellH
+                radius: height / 2
+                color: strip.urgentOn ? Theme.withAlpha(Theme.error, 0.28) : Theme.surfaceContainer
+                border.width: strip.urgentOn ? 2 : 1
+                border.color: Theme.error
+
+                DankIcon {
+                    anchors.centerIn: parent
+                    name: "priority_high"
+                    size: Theme.iconSizeSmall
+                    color: Theme.error
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (strip.composeMode)
+                            root.composeUrgent = !root.composeUrgent;
+                        else
+                            root.setTodoUrgent(strip.todoId, strip.urgentInt !== 1);
+                    }
+                }
+            }
+        }
+    }
+
     popoutWidth: 380
 
     ListModel {
         id: filteredLm
+    }
+
+    function focusComposeTitleField() {
+        if (!root.composing)
+            return;
+        if (composeTitleField && composeTitleField.visible)
+            composeTitleField.forceActiveFocus();
+    }
+
+    Timer {
+        id: composeTitleFocusTimer
+        interval: 50
+        repeat: false
+        onTriggered: root.focusComposeTitleField()
+    }
+
+    Timer {
+        id: composeTitleFocusTimer2
+        interval: 200
+        repeat: false
+        onTriggered: root.focusComposeTitleField()
+    }
+
+    Connections {
+        target: root
+        function onComposingChanged() {
+            if (root.composing) {
+                composeTitleFocusTimer.restart();
+                composeTitleFocusTimer2.restart();
+            }
+        }
     }
 
     onPluginServiceChanged: {
@@ -115,7 +278,8 @@ PluginComponent {
                 todoTitle: t.title || "",
                 todoNotes: t.notes || "",
                 todoStatus: t.status || 0,
-                todoTint: typeof t.tint === "string" ? t.tint : ""
+                todoTint: typeof t.tint === "string" ? t.tint : "",
+                todoUrgent: t.urgent === true ? 1 : 0
             });
         }
     }
@@ -132,7 +296,8 @@ PluginComponent {
                 title: it.todoTitle,
                 notes: it.todoNotes,
                 status: it.todoStatus,
-                tint: typeof it.todoTint === "string" ? it.todoTint : ""
+                tint: typeof it.todoTint === "string" ? it.todoTint : "",
+                urgent: it.todoUrgent === 1
             };
         }
         setTodosCopy(copy);
@@ -149,7 +314,8 @@ PluginComponent {
                 todoTitle: g.todoTitle,
                 todoNotes: g.todoNotes,
                 todoStatus: g.todoStatus,
-                todoTint: typeof g.todoTint === "string" ? g.todoTint : ""
+                todoTint: typeof g.todoTint === "string" ? g.todoTint : "",
+                todoUrgent: g.todoUrgent === 1 ? 1 : 0
             });
         }
         const row = items.splice(from, 1)[0];
@@ -163,7 +329,8 @@ PluginComponent {
                 todoTitle: it.todoTitle,
                 todoNotes: it.todoNotes,
                 todoStatus: it.todoStatus,
-                todoTint: it.todoTint || ""
+                todoTint: it.todoTint || "",
+                todoUrgent: it.todoUrgent === 1 ? 1 : 0
             });
         }
         applyFilteredLmToTodos();
@@ -182,6 +349,12 @@ PluginComponent {
         saveTodos();
         syncFiltered();
         openMenuId = "";
+    }
+
+    function applyTodosPreserveMenu(next) {
+        todos = next;
+        saveTodos();
+        syncFiltered();
     }
 
     function outstandingCount() {
@@ -246,9 +419,27 @@ PluginComponent {
             title: t.title,
             notes: t.notes || "",
             status: t.status || 0,
-            tint: hex && typeof hex === "string" && hex.length > 0 ? hex : ""
+            tint: hex && typeof hex === "string" && hex.length > 0 ? hex : "",
+            urgent: t.urgent === true
         };
-        setTodosCopy(copy);
+        applyTodosPreserveMenu(copy);
+    }
+
+    function setTodoUrgent(id, urgent) {
+        const idx = findIndexById(id);
+        if (idx < 0)
+            return;
+        const copy = todos.slice();
+        const t = copy[idx];
+        copy[idx] = {
+            id: t.id,
+            title: t.title,
+            notes: t.notes || "",
+            status: t.status || 0,
+            tint: typeof t.tint === "string" ? t.tint : "",
+            urgent: urgent === true
+        };
+        applyTodosPreserveMenu(copy);
     }
 
     function cycleStatus(id) {
@@ -262,7 +453,8 @@ PluginComponent {
             title: t.title,
             notes: t.notes || "",
             status: (t.status + 1) % 3,
-            tint: typeof t.tint === "string" ? t.tint : ""
+            tint: typeof t.tint === "string" ? t.tint : "",
+            urgent: t.urgent === true
         };
         setTodosCopy(copy);
     }
@@ -278,7 +470,8 @@ PluginComponent {
             title: t.title,
             notes: t.notes || "",
             status: (t.status + 2) % 3,
-            tint: typeof t.tint === "string" ? t.tint : ""
+            tint: typeof t.tint === "string" ? t.tint : "",
+            urgent: t.urgent === true
         };
         setTodosCopy(copy);
     }
@@ -298,15 +491,21 @@ PluginComponent {
         composing = true;
         composeTitleText = "";
         composeNotesText = "";
+        composeTint = "";
+        composeUrgent = false;
         cancelEdit();
         openMenuId = "";
         composeTitleFocusTimer.restart();
+        composeTitleFocusTimer2.restart();
+        Qt.callLater(() => root.focusComposeTitleField());
     }
 
     function cancelCompose() {
         composing = false;
         composeTitleText = "";
         composeNotesText = "";
+        composeTint = "";
+        composeUrgent = false;
         openMenuId = "";
     }
 
@@ -320,11 +519,14 @@ PluginComponent {
                 title: title,
                 notes: composeNotesText.trim(),
                 status: statusIncomplete,
-                tint: ""
+                tint: typeof composeTint === "string" && composeTint.length > 0 ? composeTint : "",
+                urgent: composeUrgent === true
             }]);
         composing = false;
         composeTitleText = "";
         composeNotesText = "";
+        composeTint = "";
+        composeUrgent = false;
         setTodosCopy(next);
     }
 
@@ -361,7 +563,8 @@ PluginComponent {
             title: title,
             notes: editNotesText.trim(),
             status: t.status,
-            tint: typeof t.tint === "string" ? t.tint : ""
+            tint: typeof t.tint === "string" ? t.tint : "",
+            urgent: t.urgent === true
         };
         cancelEdit();
         setTodosCopy(copy);
@@ -560,11 +763,12 @@ PluginComponent {
 
                             delegate: StyledRect {
                                 width: todoListView.width
-                                height: rowInner.implicitHeight + Theme.spacingM * 2
+                                implicitHeight: rowInner.implicitHeight + Theme.spacingM * 2
+                                height: implicitHeight
                                 radius: Theme.cornerRadius
                                 color: root.todoRowCardColor(todoTint, todoStatus)
-                                border.width: root.reorderActiveIndex >= 0 && index === root.reorderHoverIndex ? 2 : 0
-                                border.color: Theme.primary
+                                border.width: todoUrgent === 1 ? 2 : (root.reorderActiveIndex >= 0 && index === root.reorderHoverIndex ? 2 : 0)
+                                border.color: todoUrgent === 1 ? Theme.error : Theme.primary
 
                                 required property int index
                                 required property string todoId
@@ -572,6 +776,7 @@ PluginComponent {
                                 required property string todoNotes
                                 required property int todoStatus
                                 required property string todoTint
+                                required property int todoUrgent
 
                                 Column {
                                     id: rowInner
@@ -802,66 +1007,30 @@ PluginComponent {
                                         }
                                     }
 
-                                    Row {
-                                        id: menuTintSwatches
+                                    Loader {
+                                        id: menuTintStripLoader
                                         width: parent.width
-                                        spacing: Theme.spacingXS
-                                        visible: root.openMenuId === todoId
-                                        readonly property int swatchCount: root.todoTintPalette.length + 1
-                                        readonly property real swatchW: swatchCount > 0 ? (width - spacing * (swatchCount - 1)) / swatchCount : 0
-                                        readonly property real swatchH: Math.max(22, swatchW * 0.85)
+                                        active: root.openMenuId === todoId
+                                        visible: active
+                                        height: item ? item.height : 0
+                                        sourceComponent: tintUrgentStripComponent
 
-                                        Repeater {
-                                            model: root.todoTintPalette
-
-                                            delegate: Rectangle {
-                                                required property string modelData
-
-                                                width: menuTintSwatches.swatchW
-                                                height: menuTintSwatches.swatchH
-                                                radius: height / 2
-                                                color: modelData
-                                                border.width: 1
-                                                border.color: Theme.withAlpha(Theme.surfaceText, 0.35)
-
-                                                MouseArea {
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.setTodoTint(todoId, modelData)
-                                                }
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            width: menuTintSwatches.swatchW
-                                            height: menuTintSwatches.swatchH
-                                            radius: height / 2
-                                            color: Theme.surfaceContainer
-                                            border.width: 1
-                                            border.color: Theme.withAlpha(Theme.surfaceText, 0.45)
-
-                                            Rectangle {
-                                                anchors.centerIn: parent
-                                                width: Math.round(parent.width * 0.55)
-                                                height: 2
-                                                rotation: 45
-                                                color: Theme.surfaceVariantText
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.setTodoTint(todoId, "")
-                                            }
+                                        onLoaded: {
+                                            item.composeMode = false;
+                                            item.swatchDoubleClickExits = false;
+                                            item.todoId = Qt.binding(function () {
+                                                return todoId;
+                                            });
+                                            item.urgentInt = Qt.binding(function () {
+                                                return todoUrgent;
+                                            });
                                         }
                                     }
 
                                     Column {
                                         id: editBlock
                                         width: parent.width
-                                        spacing: Theme.spacingS
+                                        spacing: Theme.spacingXS
                                         visible: root.editingId === todoId
 
                                         DankTextField {
@@ -869,9 +1038,12 @@ PluginComponent {
                                             width: parent.width
                                             placeholderText: "Title"
                                             text: root.editTitleText
-                                            maximumLength: 240
                                             onTextChanged: {
-                                                if (root.editingId === todoId)
+                                                if (root.editingId !== todoId)
+                                                    return;
+                                                if (text.length > 240)
+                                                    root.editTitleText = text.substring(0, 240);
+                                                else
                                                     root.editTitleText = text;
                                             }
                                             onAccepted: root.commitEdit()
@@ -881,10 +1053,33 @@ PluginComponent {
                                             width: parent.width
                                             placeholderText: "Notes (optional)"
                                             text: root.editNotesText
-                                            maximumLength: 2000
                                             onTextChanged: {
-                                                if (root.editingId === todoId)
+                                                if (root.editingId !== todoId)
+                                                    return;
+                                                if (text.length > 2000)
+                                                    root.editNotesText = text.substring(0, 2000);
+                                                else
                                                     root.editNotesText = text;
+                                            }
+                                        }
+
+                                        Loader {
+                                            id: editTintStripLoader
+                                            width: parent.width
+                                            active: root.editingId === todoId
+                                            visible: active
+                                            height: item ? item.height : 0
+                                            sourceComponent: tintUrgentStripComponent
+
+                                            onLoaded: {
+                                                item.composeMode = false;
+                                                item.swatchDoubleClickExits = true;
+                                                item.todoId = Qt.binding(function () {
+                                                    return todoId;
+                                                });
+                                                item.urgentInt = Qt.binding(function () {
+                                                    return todoUrgent;
+                                                });
                                             }
                                         }
 
@@ -952,7 +1147,7 @@ PluginComponent {
                         width: parent.width
                         height: bottomBlock.implicitHeight + Theme.spacingM * 2
                         radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHigh
+                        color: root.composing && root.composeTint.length > 0 ? root.todoRowCardColor(root.composeTint, root.statusIncomplete) : Theme.surfaceContainerHigh
 
                         Column {
                             id: bottomBlock
@@ -966,22 +1161,18 @@ PluginComponent {
                                 visible: root.composing
                                 placeholderText: "New todo title"
                                 text: root.composeTitleText
-                                maximumLength: 240
-                                onTextChanged: root.composeTitleText = text
+                                onTextChanged: {
+                                    if (text.length > 240)
+                                        root.composeTitleText = text.substring(0, 240);
+                                    else
+                                        root.composeTitleText = text;
+                                }
                                 onAccepted: root.commitCompose()
                                 onVisibleChanged: {
-                                    if (visible)
+                                    if (visible) {
                                         composeTitleFocusTimer.restart();
-                                }
-                            }
-
-                            Timer {
-                                id: composeTitleFocusTimer
-                                interval: 50
-                                repeat: false
-                                onTriggered: {
-                                    if (root.composing && composeTitleField && composeTitleField.visible)
-                                        composeTitleField.forceActiveFocus();
+                                        composeTitleFocusTimer2.restart();
+                                    }
                                 }
                             }
 
@@ -990,9 +1181,35 @@ PluginComponent {
                                 visible: root.composing
                                 placeholderText: "Notes (optional)"
                                 text: root.composeNotesText
-                                maximumLength: 2000
-                                onTextChanged: root.composeNotesText = text
+                                onTextChanged: {
+                                    if (text.length > 2000)
+                                        root.composeNotesText = text.substring(0, 2000);
+                                    else
+                                        root.composeNotesText = text;
+                                }
                                 onAccepted: root.commitCompose()
+                            }
+
+                            StyledText {
+                                width: parent.width
+                                visible: root.composing
+                                text: "Colour & urgent"
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.surfaceVariantText
+                            }
+
+                            Loader {
+                                id: composeTintStripLoader
+                                width: parent.width
+                                active: root.composing
+                                visible: active
+                                height: item ? item.height : 0
+                                sourceComponent: tintUrgentStripComponent
+
+                                onLoaded: {
+                                    item.composeMode = true;
+                                    item.swatchDoubleClickExits = true;
+                                }
                             }
 
                             Item {
