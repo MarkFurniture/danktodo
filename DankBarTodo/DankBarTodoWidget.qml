@@ -51,6 +51,7 @@ PluginComponent {
     property int sortActiveCriterion: -1
     property int sortPhase: sortPhaseNone
     property var sortManualSnapshotIds: []
+    property Item sortPopupHostItem: null
 
     readonly property int barCountFontPx: Math.max(6, Math.round(barThickness * 0.238))
     readonly property int barCountPillHeight: Math.max(10, Math.round(barThickness * 0.315))
@@ -378,6 +379,17 @@ PluginComponent {
         sortActiveCriterion = -1;
         sortPhase = sortPhaseNone;
         sortManualSnapshotIds = [];
+    }
+
+    function repositionSortPopup(popup, anchorBtn) {
+        const host = root.sortPopupHostItem;
+        if (!popup || !anchorBtn || !host)
+            return;
+        if (popup.parent !== host)
+            popup.parent = host;
+        const pt = anchorBtn.mapToItem(host, 0, 0);
+        popup.x = Math.max(0, pt.x + anchorBtn.width - popup.width);
+        popup.y = pt.y + anchorBtn.height + 4;
     }
 
     function syncFiltered() {
@@ -910,6 +922,14 @@ PluginComponent {
             id: popoutRoot
             width: parent.width
             implicitHeight: pc.implicitHeight
+            clip: false
+
+            Component.onCompleted: root.sortPopupHostItem = popoutRoot
+
+            Component.onDestruction: {
+                if (root.sortPopupHostItem === popoutRoot)
+                    root.sortPopupHostItem = null;
+            }
 
             property var closePopout: null
             property var parentPopout: null
@@ -923,6 +943,7 @@ PluginComponent {
                     root.cancelCompose();
                     root.cancelEdit();
                     root.openMenuId = "";
+                    sortPopup.close();
                 }
             }
 
@@ -1009,226 +1030,9 @@ PluginComponent {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: sortPopup.open()
-                            }
-                        }
-
-                        Popup {
-                            id: sortPopup
-                            parent: headerActionsRow
-                            x: Math.max(0, sortMenuBtn.x + sortMenuBtn.width - width)
-                            y: sortMenuBtn.y + sortMenuBtn.height + 4
-                            width: 232
-                            padding: Theme.spacingXS
-                            modal: true
-                            focus: true
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-                            background: Rectangle {
-                                color: Theme.surfaceContainerHigh
-                                radius: Theme.cornerRadius
-                                border.width: 1
-                                border.color: Theme.withAlpha(Theme.surfaceText, 0.22)
-                            }
-
-                            contentItem: Column {
-                                id: sortPopupColumn
-                                spacing: Theme.spacingXS
-                                width: 216
-
-                                StyledText {
-                                    width: parent.width
-                                    text: "Sort by"
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.surfaceVariantText
-                                }
-
-                                StyledRect {
-                                    width: parent.width
-                                    height: 36
-                                    radius: Theme.cornerRadius
-                                    color: sortRowColourMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
-
-                                    StyledText {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Theme.spacingS
-                                        text: "Colour"
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.surfaceText
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByColour && root.sortPhase === root.sortPhaseAsc
-                                        name: "arrow_upward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByColour && root.sortPhase === root.sortPhaseDesc
-                                        name: "arrow_downward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    MouseArea {
-                                        id: sortRowColourMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.onSortCriterionClicked(root.sortByColour);
-                                            sortPopup.close();
-                                        }
-                                    }
-                                }
-
-                                StyledRect {
-                                    width: parent.width
-                                    height: 36
-                                    radius: Theme.cornerRadius
-                                    color: sortRowCreatedMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
-
-                                    StyledText {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Theme.spacingS
-                                        text: "Created date"
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.surfaceText
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByCreated && root.sortPhase === root.sortPhaseAsc
-                                        name: "arrow_upward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByCreated && root.sortPhase === root.sortPhaseDesc
-                                        name: "arrow_downward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    MouseArea {
-                                        id: sortRowCreatedMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.onSortCriterionClicked(root.sortByCreated);
-                                            sortPopup.close();
-                                        }
-                                    }
-                                }
-
-                                StyledRect {
-                                    width: parent.width
-                                    height: 36
-                                    radius: Theme.cornerRadius
-                                    color: sortRowUrgentMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
-
-                                    StyledText {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Theme.spacingS
-                                        text: "Urgency"
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.surfaceText
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByUrgent && root.sortPhase === root.sortPhaseAsc
-                                        name: "arrow_upward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByUrgent && root.sortPhase === root.sortPhaseDesc
-                                        name: "arrow_downward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    MouseArea {
-                                        id: sortRowUrgentMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.onSortCriterionClicked(root.sortByUrgent);
-                                            sortPopup.close();
-                                        }
-                                    }
-                                }
-
-                                StyledRect {
-                                    width: parent.width
-                                    height: 36
-                                    radius: Theme.cornerRadius
-                                    color: sortRowStatusMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
-
-                                    StyledText {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Theme.spacingS
-                                        text: "Status"
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.surfaceText
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByStatus && root.sortPhase === root.sortPhaseAsc
-                                        name: "arrow_upward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    DankIcon {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: Theme.spacingS
-                                        visible: root.sortActiveCriterion === root.sortByStatus && root.sortPhase === root.sortPhaseDesc
-                                        name: "arrow_downward"
-                                        size: Theme.iconSizeSmall
-                                        color: Theme.primary
-                                    }
-
-                                    MouseArea {
-                                        id: sortRowStatusMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.onSortCriterionClicked(root.sortByStatus);
-                                            sortPopup.close();
-                                        }
-                                    }
+                                onClicked: {
+                                    root.repositionSortPopup(sortPopup, sortMenuBtn);
+                                    sortPopup.open();
                                 }
                             }
                         }
@@ -1890,6 +1694,228 @@ PluginComponent {
                             cursorShape: Qt.ArrowCursor
                             onClicked: root.openMenuId = ""
                         }
+                }
+            }
+
+            Popup {
+                id: sortPopup
+                z: 200000
+                x: 0
+                y: 0
+                width: 232
+                padding: Theme.spacingXS
+                modal: false
+                focus: true
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                onOpened: root.repositionSortPopup(sortPopup, sortMenuBtn)
+
+                background: Rectangle {
+                    color: Theme.surfaceContainerHigh
+                    radius: Theme.cornerRadius
+                    border.width: 1
+                    border.color: Theme.withAlpha(Theme.surfaceText, 0.22)
+                }
+
+                contentItem: Column {
+                    id: sortPopupColumn
+                    spacing: Theme.spacingXS
+                    width: 216
+
+                    StyledText {
+                        width: parent.width
+                        text: "Sort by"
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                    }
+
+                    StyledRect {
+                        width: parent.width
+                        height: 36
+                        radius: Theme.cornerRadius
+                        color: sortRowColourMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: Theme.spacingS
+                            text: "Colour"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByColour && root.sortPhase === root.sortPhaseAsc
+                            name: "arrow_upward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByColour && root.sortPhase === root.sortPhaseDesc
+                            name: "arrow_downward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        MouseArea {
+                            id: sortRowColourMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.onSortCriterionClicked(root.sortByColour);
+                                sortPopup.close();
+                            }
+                        }
+                    }
+
+                    StyledRect {
+                        width: parent.width
+                        height: 36
+                        radius: Theme.cornerRadius
+                        color: sortRowCreatedMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: Theme.spacingS
+                            text: "Created date"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByCreated && root.sortPhase === root.sortPhaseAsc
+                            name: "arrow_upward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByCreated && root.sortPhase === root.sortPhaseDesc
+                            name: "arrow_downward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        MouseArea {
+                            id: sortRowCreatedMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.onSortCriterionClicked(root.sortByCreated);
+                                sortPopup.close();
+                            }
+                        }
+                    }
+
+                    StyledRect {
+                        width: parent.width
+                        height: 36
+                        radius: Theme.cornerRadius
+                        color: sortRowUrgentMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: Theme.spacingS
+                            text: "Urgency"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByUrgent && root.sortPhase === root.sortPhaseAsc
+                            name: "arrow_upward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByUrgent && root.sortPhase === root.sortPhaseDesc
+                            name: "arrow_downward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        MouseArea {
+                            id: sortRowUrgentMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.onSortCriterionClicked(root.sortByUrgent);
+                                sortPopup.close();
+                            }
+                        }
+                    }
+
+                    StyledRect {
+                        width: parent.width
+                        height: 36
+                        radius: Theme.cornerRadius
+                        color: sortRowStatusMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: Theme.spacingS
+                            text: "Status"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByStatus && root.sortPhase === root.sortPhaseAsc
+                            name: "arrow_upward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        DankIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: Theme.spacingS
+                            visible: root.sortActiveCriterion === root.sortByStatus && root.sortPhase === root.sortPhaseDesc
+                            name: "arrow_downward"
+                            size: Theme.iconSizeSmall
+                            color: Theme.primary
+                        }
+
+                        MouseArea {
+                            id: sortRowStatusMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.onSortCriterionClicked(root.sortByStatus);
+                                sortPopup.close();
+                            }
+                        }
+                    }
                 }
             }
         }
