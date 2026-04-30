@@ -61,8 +61,11 @@ PluginComponent {
 
             property bool composeMode: false
             property string todoId: ""
+            property string tintHex: ""
             property int urgentInt: 0
             property bool swatchDoubleClickExits: false
+
+            readonly property color urgentAccentColor: root.todoUrgentAccentColor(strip.composeMode ? root.composeTint : strip.tintHex)
 
             readonly property real gap: Theme.spacingXS
             readonly property int stripCount: root.todoTintPalette.length + 2
@@ -156,15 +159,15 @@ PluginComponent {
                 width: strip.cellW
                 height: strip.cellH
                 radius: height / 2
-                color: strip.urgentOn ? Theme.withAlpha(Theme.error, 0.28) : Theme.surfaceContainer
+                color: strip.urgentOn ? Theme.withAlpha(strip.urgentAccentColor, 0.28) : Theme.surfaceContainer
                 border.width: strip.urgentOn ? 2 : 1
-                border.color: Theme.error
+                border.color: strip.urgentOn ? strip.urgentAccentColor : Theme.withAlpha(Theme.surfaceText, 0.40)
 
                 DankIcon {
                     anchors.centerIn: parent
                     name: "priority_high"
                     size: Theme.iconSizeSmall
-                    color: Theme.error
+                    color: strip.urgentOn ? strip.urgentAccentColor : Theme.surfaceVariantText
                 }
 
                 MouseArea {
@@ -472,6 +475,66 @@ PluginComponent {
             );
         }
         return fill;
+    }
+
+    function lightenTintForText(tintHex, towardWhite) {
+        const c = Qt.color(String(tintHex).trim());
+        const t = towardWhite;
+        return Qt.rgba(
+            c.r * (1 - t) + t,
+            c.g * (1 - t) + t,
+            c.b * (1 - t) + t,
+            1
+        );
+    }
+
+    function todoRowPrimaryTextColor(tintHex, status) {
+        if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
+            return Theme.surfaceText;
+        const base = lightenTintForText(tintHex, 0.38);
+        if (status === statusComplete) {
+            const dim = Theme.surfaceText;
+            const d = 0.42;
+            return Qt.rgba(
+                base.r * (1 - d) + dim.r * d,
+                base.g * (1 - d) + dim.g * d,
+                base.b * (1 - d) + dim.b * d,
+                1
+            );
+        }
+        return base;
+    }
+
+    function todoRowSecondaryTextColor(tintHex, status) {
+        if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
+            return Theme.surfaceVariantText;
+        const base = lightenTintForText(tintHex, 0.55);
+        if (status === statusComplete) {
+            const dim = Theme.surfaceVariantText;
+            const d = 0.42;
+            return Qt.rgba(
+                base.r * (1 - d) + dim.r * d,
+                base.g * (1 - d) + dim.g * d,
+                base.b * (1 - d) + dim.b * d,
+                1
+            );
+        }
+        return base;
+    }
+
+    function vibrantFromTintHex(hex) {
+        const c = Qt.color(String(hex).trim());
+        const f = 1.42;
+        function ch(x) {
+            return Math.min(1, Math.max(0, 0.5 + (x - 0.5) * f));
+        }
+        return Qt.rgba(ch(c.r), ch(c.g), ch(c.b), 1);
+    }
+
+    function todoUrgentAccentColor(tintHex) {
+        if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
+            return Theme.error;
+        return vibrantFromTintHex(tintHex.trim());
     }
 
     function setTodoTint(id, hex) {
@@ -900,7 +963,7 @@ PluginComponent {
                                 radius: Theme.cornerRadius
                                 color: root.todoRowCardColor(todoTint, todoStatus)
                                 border.width: todoUrgent === 1 ? 2 : (root.reorderActiveIndex >= 0 && index === root.reorderHoverIndex ? 2 : 0)
-                                border.color: todoUrgent === 1 ? Theme.error : Theme.primary
+                                border.color: todoUrgent === 1 ? root.todoUrgentAccentColor(todoTint) : Theme.primary
 
                                 required property int index
                                 required property string todoId
@@ -1012,7 +1075,7 @@ PluginComponent {
                                                     text: todoTitle || ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     font.weight: Font.Medium
-                                                    color: Theme.surfaceText
+                                                    color: root.todoRowPrimaryTextColor(todoTint, todoStatus)
                                                     wrapMode: Text.WordWrap
                                                     maximumLineCount: 4
                                                 }
@@ -1022,7 +1085,7 @@ PluginComponent {
                                                     visible: (todoNotes || "").length > 0
                                                     text: todoNotes || ""
                                                     font.pixelSize: Theme.fontSizeSmall
-                                                    color: Theme.surfaceVariantText
+                                                    color: root.todoRowSecondaryTextColor(todoTint, todoStatus)
                                                     wrapMode: Text.WordWrap
                                                     maximumLineCount: 6
                                                 }
@@ -1045,7 +1108,7 @@ PluginComponent {
                                                     selectByMouse: true
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     font.weight: Font.Medium
-                                                    color: Theme.surfaceText
+                                                    color: root.todoRowPrimaryTextColor(todoTint, todoStatus)
                                                     selectedTextColor: Theme.surface
                                                     selectionColor: Theme.primary
                                                     padding: 0
@@ -1087,7 +1150,7 @@ PluginComponent {
                                                     wrapMode: TextEdit.Wrap
                                                     selectByMouse: true
                                                     font.pixelSize: Theme.fontSizeSmall
-                                                    color: Theme.surfaceVariantText
+                                                    color: root.todoRowSecondaryTextColor(todoTint, todoStatus)
                                                     selectedTextColor: Theme.surface
                                                     selectionColor: Theme.primary
                                                     padding: 0
@@ -1251,6 +1314,9 @@ PluginComponent {
                                             item.todoId = Qt.binding(function () {
                                                 return todoId;
                                             });
+                                            item.tintHex = Qt.binding(function () {
+                                                return todoTint;
+                                            });
                                             item.urgentInt = Qt.binding(function () {
                                                 return todoUrgent;
                                             });
@@ -1276,6 +1342,9 @@ PluginComponent {
                                                 item.swatchDoubleClickExits = true;
                                                 item.todoId = Qt.binding(function () {
                                                     return todoId;
+                                                });
+                                                item.tintHex = Qt.binding(function () {
+                                                    return todoTint;
                                                 });
                                                 item.urgentInt = Qt.binding(function () {
                                                     return todoUrgent;

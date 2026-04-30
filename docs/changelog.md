@@ -2,6 +2,8 @@
 
 ## 2026-04-28
 
+- [Changed]: **Urgent** visuals (row border, strip cell fill/border/icon) use **`todoUrgentAccentColor`**: `vibrantFromTintHex` (channels stretched from mid‑grey) from the current tint, or **`Theme.error`** when there is no tint; compose strip uses **`composeTint`** the same way; urgent cell when off uses neutral border/icon (Mike Thomas, 2026-04-28)
+- [Changed]: Tinted todo rows use **tint-derived text colours** (`lightenTintForText` toward white; title **0.38**, notes **0.55**); **Complete** rows blend those toward `Theme.surfaceText` / `Theme.surfaceVariantText` to match dimmed cards; untinted rows unchanged (Mike Thomas, 2026-04-28)
 - [Changed]: Removed the **Colour & urgent** label above the compose colour strip in **Add todo** (strip unchanged) (Mike Thomas, 2026-04-28)
 - [Changed]: Todo **edit** uses **inline `TextEdit`** in the row’s middle column (same fonts as read labels, zero padding) instead of large **DankTextField** blocks; **viewRow** stays visible while editing so drag/status/⋮ do not jump; `startEdit` assigns `editTitleText` / `editNotesText` before `editingId`; `Connections` seeds fields and focuses title; **Enter** (without **Shift**) commits from title (Mike Thomas, 2026-04-28)
 - [Changed]: ⋮ **Delete** is two-step: first click switches the control to a **check** on **success** green; second click deletes; closing the menu or switching rows clears the armed state (`pendingDeleteId`); `loadAll` clears menu + pending (Mike Thomas, 2026-04-28)
