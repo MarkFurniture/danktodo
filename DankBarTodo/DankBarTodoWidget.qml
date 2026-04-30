@@ -1390,14 +1390,6 @@ PluginComponent {
                                 onAccepted: root.commitCompose()
                             }
 
-                            StyledText {
-                                width: parent.width
-                                visible: root.composing
-                                text: "Colour & urgent"
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.surfaceVariantText
-                            }
-
                             Loader {
                                 id: composeTintStripLoader
                                 width: parent.width
