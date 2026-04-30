@@ -24,6 +24,7 @@ PluginComponent {
     property string editNotesText: ""
 
     property string openMenuId: ""
+    property string pendingDeleteId: ""
 
     property var undoStack: []
     property var redoStack: []
@@ -239,6 +240,8 @@ PluginComponent {
         redoStack = [];
         canUndo = false;
         canRedo = false;
+        openMenuId = "";
+        pendingDeleteId = "";
         syncFiltered();
     }
 
@@ -550,6 +553,20 @@ PluginComponent {
         setTodosCopy(copy);
     }
 
+    function handleDeleteMenuClick(id) {
+        if (pendingDeleteId === id) {
+            pendingDeleteId = "";
+            deleteTodo(id);
+        } else {
+            pendingDeleteId = id;
+        }
+    }
+
+    onOpenMenuIdChanged: {
+        if (openMenuId === "" || openMenuId !== pendingDeleteId)
+            pendingDeleteId = "";
+    }
+
     function startCompose() {
         composing = true;
         composeTitleText = "";
@@ -598,11 +615,11 @@ PluginComponent {
         if (idx < 0)
             return;
         const t = todos[idx];
-        editingId = id;
         editTitleText = t.title || "";
         editNotesText = t.notes || "";
         composing = false;
         openMenuId = "";
+        editingId = id;
     }
 
     function cancelEdit() {
@@ -905,8 +922,7 @@ PluginComponent {
                                         id: viewRow
                                         width: parent.width
                                         spacing: Theme.spacingS
-                                        visible: root.editingId !== todoId
-                                        readonly property real rowBodyH: Math.max(36, titleNotesCol.implicitHeight)
+                                        readonly property real rowBodyH: Math.max(36, middleCol.implicitHeight)
 
                                         MouseArea {
                                             id: dragHandle
@@ -980,14 +996,16 @@ PluginComponent {
                                         Item {
                                             id: middleCol
                                             width: parent.width - dragHandle.width - statusColumn.width - menuStrip.width - Theme.spacingS * 3
-                                            implicitHeight: titleNotesCol.implicitHeight
+                                            implicitHeight: root.editingId === todoId ? editTitleNotesCol.implicitHeight : readTitleNotesCol.implicitHeight
 
                                             Column {
-                                                id: titleNotesCol
+                                                id: readTitleNotesCol
                                                 anchors.left: parent.left
                                                 anchors.right: parent.right
                                                 anchors.top: parent.top
                                                 spacing: Theme.spacingXS
+                                                visible: root.editingId !== todoId
+                                                width: parent.width
 
                                                 StyledText {
                                                     width: parent.width
@@ -1007,6 +1025,103 @@ PluginComponent {
                                                     color: Theme.surfaceVariantText
                                                     wrapMode: Text.WordWrap
                                                     maximumLineCount: 6
+                                                }
+                                            }
+
+                                            Column {
+                                                id: editTitleNotesCol
+                                                anchors.left: parent.left
+                                                anchors.right: parent.right
+                                                anchors.top: parent.top
+                                                spacing: Theme.spacingXS
+                                                visible: root.editingId === todoId
+                                                width: parent.width
+
+                                                TextEdit {
+                                                    id: editTitleField
+                                                    width: parent.width
+                                                    textFormat: TextEdit.PlainText
+                                                    wrapMode: TextEdit.Wrap
+                                                    selectByMouse: true
+                                                    font.pixelSize: Theme.fontSizeMedium
+                                                    font.weight: Font.Medium
+                                                    color: Theme.surfaceText
+                                                    selectedTextColor: Theme.surface
+                                                    selectionColor: Theme.primary
+                                                    padding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    readOnly: root.editingId !== todoId
+                                                    height: Math.max(contentHeight, Math.ceil(font.pixelSize * 1.15))
+
+                                                    onTextChanged: {
+                                                        if (root.editingId !== todoId)
+                                                            return;
+                                                        if (text.length > 240) {
+                                                            const c = cursorPosition;
+                                                            const capped = text.substring(0, 240);
+                                                            root.editTitleText = capped;
+                                                            editTitleField.text = capped;
+                                                            editTitleField.cursorPosition = Math.min(c, 240);
+                                                        } else {
+                                                            root.editTitleText = text;
+                                                        }
+                                                    }
+
+                                                    Keys.onPressed: function (ev) {
+                                                        if (ev.key === Qt.Key_Return || ev.key === Qt.Key_Enter) {
+                                                            if (!(ev.modifiers & Qt.ShiftModifier)) {
+                                                                ev.accepted = true;
+                                                                root.commitEdit();
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                TextEdit {
+                                                    id: editNotesField
+                                                    width: parent.width
+                                                    textFormat: TextEdit.PlainText
+                                                    wrapMode: TextEdit.Wrap
+                                                    selectByMouse: true
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    color: Theme.surfaceVariantText
+                                                    selectedTextColor: Theme.surface
+                                                    selectionColor: Theme.primary
+                                                    padding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    readOnly: root.editingId !== todoId
+                                                    height: Math.max(contentHeight, Math.ceil(font.pixelSize * 1.2))
+
+                                                    onTextChanged: {
+                                                        if (root.editingId !== todoId)
+                                                            return;
+                                                        if (text.length > 2000) {
+                                                            const c = cursorPosition;
+                                                            const capped = text.substring(0, 2000);
+                                                            root.editNotesText = capped;
+                                                            editNotesField.text = capped;
+                                                            editNotesField.cursorPosition = Math.min(c, 2000);
+                                                        } else {
+                                                            root.editNotesText = text;
+                                                        }
+                                                    }
+                                                }
+
+                                                Connections {
+                                                    target: root
+                                                    function onEditingIdChanged() {
+                                                        if (root.editingId !== todoId)
+                                                            return;
+                                                        editTitleField.text = root.editTitleText;
+                                                        editNotesField.text = root.editNotesText;
+                                                        Qt.callLater(() => editTitleField.forceActiveFocus());
+                                                    }
                                                 }
                                             }
 
@@ -1089,7 +1204,7 @@ PluginComponent {
                                                     width: 40
                                                     height: 36
                                                     radius: Theme.cornerRadius
-                                                    color: Theme.error
+                                                    color: root.pendingDeleteId === todoId ? Theme.success : Theme.error
 
                                                     Rectangle {
                                                         anchors.fill: parent
@@ -1105,7 +1220,7 @@ PluginComponent {
 
                                                     DankIcon {
                                                         anchors.centerIn: parent
-                                                        name: "delete"
+                                                        name: root.pendingDeleteId === todoId ? "check" : "delete"
                                                         size: Theme.iconSizeSmall
                                                         color: Theme.surface
                                                     }
@@ -1115,7 +1230,7 @@ PluginComponent {
                                                         anchors.fill: parent
                                                         hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.deleteTodo(todoId)
+                                                        onClicked: root.handleDeleteMenuClick(todoId)
                                                     }
                                                 }
                                             }
@@ -1147,36 +1262,6 @@ PluginComponent {
                                         width: parent.width
                                         spacing: Theme.spacingXS
                                         visible: root.editingId === todoId
-
-                                        DankTextField {
-                                            id: editTitleField
-                                            width: parent.width
-                                            placeholderText: "Title"
-                                            text: root.editTitleText
-                                            onTextChanged: {
-                                                if (root.editingId !== todoId)
-                                                    return;
-                                                if (text.length > 240)
-                                                    root.editTitleText = text.substring(0, 240);
-                                                else
-                                                    root.editTitleText = text;
-                                            }
-                                            onAccepted: root.commitEdit()
-                                        }
-
-                                        DankTextField {
-                                            width: parent.width
-                                            placeholderText: "Notes (optional)"
-                                            text: root.editNotesText
-                                            onTextChanged: {
-                                                if (root.editingId !== todoId)
-                                                    return;
-                                                if (text.length > 2000)
-                                                    root.editNotesText = text.substring(0, 2000);
-                                                else
-                                                    root.editNotesText = text;
-                                            }
-                                        }
 
                                         Loader {
                                             id: editTintStripLoader

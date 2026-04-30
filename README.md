@@ -6,7 +6,7 @@ A bar plugin for [DankMaterialShell](https://github.com/AvengeMedia/DankMaterial
 
 - Outstanding count badge on the checklist icon (counts everything that is not **Complete**).
 - Status cycles on the leading icon: **Incomplete** → **Active** → **Complete** → … (icon colour: default / blue when **Active** / green when **Complete**; icon stays vertically centred with the text block).
-- Per-todo **notes**, **Edit** / **Delete** from a **⋮** menu. **Edit** hides the row chrome and shows **DankTextField** title/notes (length limits enforced in `onTextChanged`, not `maximumLength`, for compatibility with the shell’s Qt Quick `TextEdit` backend), colour strip, then **Save** / **Cancel**.
+- Per-todo **notes**, **Edit** / **Delete** from a **⋮** menu. **Delete** is two-step: first tap shows a **check** on green (confirm); second tap removes the todo. **Edit** keeps the same row (drag handle, status, ⋮) and swaps the title/notes area for **plain `TextEdit`** controls with **zero padding** and the **same font sizes** as the read-only labels so editing stays visually in place; length limits are enforced in `onTextChanged` (no `maximumLength`). The colour strip and **Save** / **Cancel** stay in a block below the row. **Add todo** still uses **DankTextField** in the bottom card.
 - **Show completed** toggle (persisted).
 - **Add**: tap **Add todo** for title, notes, then a labelled **Colour & urgent** strip (full width), then **Add** / **Cancel**; the bottom card previews the chosen tint; **Enter** in the title or notes saves when the title is non-empty. Double-click a **colour** or **clear** swatch while composing cancels compose.
 - **Reorder**: drag the handle on the left edge of a row to move it in the filtered list (order is persisted in the full todo list).

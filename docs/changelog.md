@@ -2,6 +2,8 @@
 
 ## 2026-04-28
 
+- [Changed]: Todo **edit** uses **inline `TextEdit`** in the row’s middle column (same fonts as read labels, zero padding) instead of large **DankTextField** blocks; **viewRow** stays visible while editing so drag/status/⋮ do not jump; `startEdit` assigns `editTitleText` / `editNotesText` before `editingId`; `Connections` seeds fields and focuses title; **Enter** (without **Shift**) commits from title (Mike Thomas, 2026-04-28)
+- [Changed]: ⋮ **Delete** is two-step: first click switches the control to a **check** on **success** green; second click deletes; closing the menu or switching rows clears the armed state (`pendingDeleteId`); `loadAll` clears menu + pending (Mike Thomas, 2026-04-28)
 - [Fixed]: ListView todo delegate used `model.todoId` etc., which resolved to the list’s `model` object instead of row roles—every row matched empty `editingId` and showed edit UI; delegate now declares `required property` roles (`todoId`, `todoTitle`, `todoNotes`, `todoStatus`) (Mike Thomas, 2026-04-28)
 - [Changed]: Status icon vertically centred with text block; removed status-based card green/blue; per-todo optional `tint` and `urgent` (red border); tint/urgent strips in edit + compose (not ⋮); active status icon uses info/blue, complete uses success/green; completed rows dim user tint toward surface; status/tint/urgent preserved on reorder and status cycle (Mike Thomas, 2026-04-28)
 - [Changed]: README describes status icon colours, vertical alignment, row tint, urgent flag, and compose/edit swatch behaviour (Mike Thomas, 2026-04-28)
