@@ -235,6 +235,14 @@ PluginComponent {
         }
     }
 
+    Connections {
+        target: root.pluginService
+        enabled: root.pluginService !== null && root.pluginService !== undefined
+        function onPluginStateChanged(pluginId) {
+            root.onExternalPluginStateChanged(pluginId);
+        }
+    }
+
     onPluginServiceChanged: {
         if (pluginService)
             Qt.callLater(loadAll);
@@ -260,6 +268,31 @@ PluginComponent {
         openMenuId = "";
         pendingDeleteId = "";
         syncFiltered();
+    }
+
+    function persistedTodoStateMatchesLocal() {
+        if (!pluginService)
+            return true;
+        const pid = layerNamespacePlugin;
+        const list = pluginService.loadPluginState(pid, "todos");
+        const remoteTodos = Array.isArray(list) ? list : [];
+        const sc = pluginService.loadPluginState(pid, "showCompleted");
+        const remoteShow = sc === true;
+        if (remoteShow !== showCompleted)
+            return false;
+        try {
+            return JSON.stringify(remoteTodos) === JSON.stringify(todos);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function onExternalPluginStateChanged(pluginId) {
+        if (pluginId !== layerNamespacePlugin || !pluginService)
+            return;
+        if (persistedTodoStateMatchesLocal())
+            return;
+        loadAll();
     }
 
     function saveTodos() {

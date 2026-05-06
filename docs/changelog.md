@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-06
+
+- [Added]: **`pluginService.pluginStateChanged`** handling — reload todos from disk when persisted state differs from this bar’s copy (multi‑monitor / multi‑bar sync); **`persistedTodoStateMatchesLocal`** skips reload when the change came from this instance so undo stacks and open menus are not cleared after local saves (Mike Thomas, 2026-05-06)
+
 ## 2026-04-28
 
 - [Changed]: Tinted row text **`lightenTintForText`** mix toward white: title **0.38 → 0.50**, notes **0.55 → 0.66** (slightly softer on tinted cards) (Mike Thomas, 2026-04-28)
