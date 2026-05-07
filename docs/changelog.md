@@ -2,6 +2,7 @@
 
 ## 2026-05-06
 
+- [Changed]: Todo **status model** — **Cancelled** (red **`cancel`**), **New** (default), **In progress**, **Complete**; **left** / **right** on the status icon step toward complete / toward cancelled **without wrapping** (at **Complete**, left no-op; at **Cancelled**, right no-op); **`statusSchema`** **2** + one-time migration from the old three-state values; badge counts only **New** + **In progress**; sort **Status** uses the new order; **Complete**/**Cancelled** rows share dimmed card/tint text treatment (Mike Thomas, 2026-05-06)
 - [Added]: **`pluginService.pluginStateChanged`** handling — reload todos from disk when persisted state differs from this bar’s copy (multi‑monitor / multi‑bar sync); **`persistedTodoStateMatchesLocal`** skips reload when the change came from this instance so undo stacks and open menus are not cleared after local saves (Mike Thomas, 2026-05-06)
 
 ## 2026-04-28

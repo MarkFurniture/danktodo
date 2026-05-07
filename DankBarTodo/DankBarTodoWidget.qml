@@ -37,9 +37,12 @@ PluginComponent {
     property int reorderActiveIndex: -1
     property int reorderHoverIndex: -1
 
-    readonly property int statusIncomplete: 0
-    readonly property int statusActive: 1
-    readonly property int statusComplete: 2
+    // Terminal / workflow order (left … right): cancelled → new → in progress → complete
+    readonly property int statusCancelled: 0
+    readonly property int statusNew: 1
+    readonly property int statusInProgress: 2
+    readonly property int statusComplete: 3
+    readonly property int todoStatusSchemaCurrent: 2
 
     readonly property int sortByColour: 0
     readonly property int sortByCreated: 1
@@ -253,11 +256,67 @@ PluginComponent {
             Qt.callLater(loadAll);
     }
 
+    function legacyTodoStatusToV2(s) {
+        switch (s | 0) {
+        case 0:
+            return statusNew;
+        case 1:
+            return statusInProgress;
+        case 2:
+            return statusComplete;
+        default:
+            return statusNew;
+        }
+    }
+
+    function normalizeTodoStatus(s) {
+        const v = s | 0;
+        if (v === statusCancelled || v === statusNew || v === statusInProgress || v === statusComplete)
+            return v;
+        return statusNew;
+    }
+
     function loadAll() {
         if (!pluginService)
             return;
+        const pid = layerNamespacePlugin;
         const list = pluginService.loadPluginState("dankBarTodo", "todos");
-        todos = Array.isArray(list) ? list : [];
+        let next = Array.isArray(list) ? list : [];
+        const schema = pluginService.loadPluginState(pid, "statusSchema", 1) | 0;
+        if (schema < todoStatusSchemaCurrent) {
+            const migrated = [];
+            for (let i = 0; i < next.length; i++) {
+                const t = next[i];
+                if (!t || typeof t.id !== "string")
+                    continue;
+                const st = legacyTodoStatusToV2(t.status);
+                migrated.push({
+                    id: t.id,
+                    title: t.title || "",
+                    notes: t.notes || "",
+                    status: st,
+                    tint: typeof t.tint === "string" ? t.tint : "",
+                    urgent: t.urgent === true
+                });
+            }
+            next = migrated;
+            todos = next;
+            saveTodos();
+            pluginService.savePluginState(pid, "statusSchema", todoStatusSchemaCurrent);
+        } else {
+            todos = next.map(function (t) {
+                if (!t || typeof t.id !== "string")
+                    return t;
+                return {
+                    id: t.id,
+                    title: t.title || "",
+                    notes: t.notes || "",
+                    status: normalizeTodoStatus(t.status),
+                    tint: typeof t.tint === "string" ? t.tint : "",
+                    urgent: t.urgent === true
+                };
+            });
+        }
         const sc = pluginService.loadPluginState("dankBarTodo", "showCompleted");
         showCompleted = sc === true;
         clearSortUiState();
@@ -339,8 +398,8 @@ PluginComponent {
             const bu = b.urgent === true ? 1 : 0;
             c = au - bu;
         } else if (criterion === sortByStatus) {
-            const as = a.status | 0;
-            const bs = b.status | 0;
+            const as = normalizeTodoStatus(a.status);
+            const bs = normalizeTodoStatus(b.status);
             c = as - bs;
         }
         if (c !== 0)
@@ -431,7 +490,7 @@ PluginComponent {
             const t = todos[i];
             if (!t || typeof t.id !== "string")
                 continue;
-            if (showCompleted || t.status !== statusComplete)
+            if (showCompleted || normalizeTodoStatus(t.status) !== statusComplete)
                 out.push(t);
         }
         filteredTodos = out;
@@ -442,7 +501,7 @@ PluginComponent {
         const idxs = [];
         for (let i = 0; i < todos.length; i++) {
             const t = todos[i];
-            if (!showCompleted && t.status === statusComplete)
+            if (!showCompleted && normalizeTodoStatus(t.status) === statusComplete)
                 continue;
             idxs.push(i);
         }
@@ -460,7 +519,7 @@ PluginComponent {
                 todoId: t.id,
                 todoTitle: t.title || "",
                 todoNotes: t.notes || "",
-                todoStatus: t.status || 0,
+                todoStatus: normalizeTodoStatus(t.status),
                 todoTint: typeof t.tint === "string" ? t.tint : "",
                 todoUrgent: t.urgent === true ? 1 : 0
             });
@@ -598,24 +657,31 @@ PluginComponent {
     function outstandingCount() {
         let n = 0;
         for (let i = 0; i < todos.length; i++) {
-            if (todos[i].status !== statusComplete)
+            const st = normalizeTodoStatus(todos[i].status);
+            if (st === statusNew || st === statusInProgress)
                 n++;
         }
         return n;
     }
 
     function statusIcon(st) {
-        if (st === statusActive)
+        const s = normalizeTodoStatus(st);
+        if (s === statusCancelled)
+            return "cancel";
+        if (s === statusInProgress)
             return "play_circle";
-        if (st === statusComplete)
+        if (s === statusComplete)
             return "check_circle";
         return "radio_button_unchecked";
     }
 
     function statusColor(st) {
-        if (st === statusActive)
+        const s = normalizeTodoStatus(st);
+        if (s === statusCancelled)
+            return Theme.error;
+        if (s === statusInProgress)
             return Theme.info;
-        if (st === statusComplete)
+        if (s === statusComplete)
             return Theme.success;
         return Theme.surfaceText;
     }
@@ -633,7 +699,8 @@ PluginComponent {
                 1
             );
         }
-        if (status === statusComplete) {
+        const st = normalizeTodoStatus(status);
+        if (st === statusComplete || st === statusCancelled) {
             const s = Theme.surface;
             const d = 0.50;
             return Qt.rgba(
@@ -661,7 +728,8 @@ PluginComponent {
         if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
             return Theme.surfaceText;
         const base = lightenTintForText(tintHex, 0.50);
-        if (status === statusComplete) {
+        const st = normalizeTodoStatus(status);
+        if (st === statusComplete || st === statusCancelled) {
             const dim = Theme.surfaceText;
             const d = 0.42;
             return Qt.rgba(
@@ -678,7 +746,8 @@ PluginComponent {
         if (!tintHex || typeof tintHex !== "string" || !tintHex.trim().length)
             return Theme.surfaceVariantText;
         const base = lightenTintForText(tintHex, 0.66);
-        if (status === statusComplete) {
+        const st = normalizeTodoStatus(status);
+        if (st === statusComplete || st === statusCancelled) {
             const dim = Theme.surfaceVariantText;
             const d = 0.42;
             return Qt.rgba(
@@ -716,7 +785,7 @@ PluginComponent {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: t.status || 0,
+            status: normalizeTodoStatus(t.status),
             tint: hex && typeof hex === "string" && hex.length > 0 ? hex : "",
             urgent: t.urgent === true
         };
@@ -733,41 +802,49 @@ PluginComponent {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: t.status || 0,
+            status: normalizeTodoStatus(t.status),
             tint: typeof t.tint === "string" ? t.tint : "",
             urgent: urgent === true
         };
         applyTodosPreserveMenu(copy);
     }
 
-    function cycleStatus(id) {
+    // Left click: one step toward complete (no wrap); at complete, no-op.
+    function adjustStatusTowardComplete(id) {
         const idx = findIndexById(id);
         if (idx < 0)
             return;
         const copy = todos.slice();
         const t = copy[idx];
+        const cur = normalizeTodoStatus(t.status);
+        if (cur >= statusComplete)
+            return;
         copy[idx] = {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: (t.status + 1) % 3,
+            status: cur + 1,
             tint: typeof t.tint === "string" ? t.tint : "",
             urgent: t.urgent === true
         };
         setTodosCopy(copy);
     }
 
-    function cycleStatusBackward(id) {
+    // Right click: one step toward cancelled (no wrap); at cancelled, no-op.
+    function adjustStatusTowardCancelled(id) {
         const idx = findIndexById(id);
         if (idx < 0)
             return;
         const copy = todos.slice();
         const t = copy[idx];
+        const cur = normalizeTodoStatus(t.status);
+        if (cur <= statusCancelled)
+            return;
         copy[idx] = {
             id: t.id,
             title: t.title,
             notes: t.notes || "",
-            status: (t.status + 2) % 3,
+            status: cur - 1,
             tint: typeof t.tint === "string" ? t.tint : "",
             urgent: t.urgent === true
         };
@@ -830,7 +907,7 @@ PluginComponent {
                 id: id,
                 title: title,
                 notes: composeNotesText.trim(),
-                status: statusIncomplete,
+                status: statusNew,
                 tint: typeof composeTint === "string" && composeTint.length > 0 ? composeTint : "",
                 urgent: composeUrgent === true
             }]);
@@ -874,7 +951,7 @@ PluginComponent {
             id: t.id,
             title: title,
             notes: editNotesText.trim(),
-            status: t.status,
+            status: normalizeTodoStatus(t.status),
             tint: typeof t.tint === "string" ? t.tint : "",
             urgent: t.urgent === true
         };
@@ -1247,9 +1324,9 @@ PluginComponent {
                                                         return;
                                                     }
                                                     if (mouse.button === Qt.RightButton)
-                                                        root.cycleStatusBackward(todoId);
+                                                        root.adjustStatusTowardCancelled(todoId);
                                                     else
-                                                        root.cycleStatus(todoId);
+                                                        root.adjustStatusTowardComplete(todoId);
                                                 }
 
                                                 DankIcon {
@@ -1621,7 +1698,7 @@ PluginComponent {
                         width: parent.width
                         height: bottomBlock.implicitHeight + Theme.spacingM * 2
                         radius: Theme.cornerRadius
-                        color: root.composing && root.composeTint.length > 0 ? root.todoRowCardColor(root.composeTint, root.statusIncomplete) : Theme.surfaceContainerHigh
+                        color: root.composing && root.composeTint.length > 0 ? root.todoRowCardColor(root.composeTint, root.statusNew) : Theme.surfaceContainerHigh
 
                         Column {
                             id: bottomBlock

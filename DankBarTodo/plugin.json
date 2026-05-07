@@ -2,7 +2,7 @@
     "id": "dankBarTodo",
     "name": "Dank Bar Todo",
     "description": "Dropdown todo list on the bar with notes, status cycle, and persistence",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "MIT",
     "author": "Mike Thomas",
     "icon": "checklist",
