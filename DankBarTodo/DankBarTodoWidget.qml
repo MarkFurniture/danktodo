@@ -484,13 +484,20 @@ PluginComponent {
         popup.y = pt.y + anchorBtn.height + 4;
     }
 
+    function todoPassesActiveListFilter(t) {
+        if (!t || typeof t.id !== "string")
+            return false;
+        const st = normalizeTodoStatus(t.status);
+        if (showCompleted)
+            return true;
+        return st !== statusComplete && st !== statusCancelled;
+    }
+
     function syncFiltered() {
         const out = [];
         for (let i = 0; i < todos.length; i++) {
             const t = todos[i];
-            if (!t || typeof t.id !== "string")
-                continue;
-            if (showCompleted || normalizeTodoStatus(t.status) !== statusComplete)
+            if (todoPassesActiveListFilter(t))
                 out.push(t);
         }
         filteredTodos = out;
@@ -501,7 +508,7 @@ PluginComponent {
         const idxs = [];
         for (let i = 0; i < todos.length; i++) {
             const t = todos[i];
-            if (!showCompleted && normalizeTodoStatus(t.status) === statusComplete)
+            if (!todoPassesActiveListFilter(t))
                 continue;
             idxs.push(i);
         }
@@ -1184,7 +1191,7 @@ PluginComponent {
                         spacing: Theme.spacingM
 
                         StyledText {
-                            text: "Show completed"
+                            text: "Show completed & cancelled"
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceText
                             anchors.verticalCenter: parent.verticalCenter
